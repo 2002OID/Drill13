@@ -109,6 +109,18 @@ class Zombie:
         else:
             return BehaviorTree.FAIL
 
+    def is_have_many_ball(self):
+        if self.ball_count > play_mode.boy.ball_count:
+            return BehaviorTree.SUCCESS
+        else:
+            return BehaviorTree.FAIL
+
+    def is_have_less_ball(self):
+        if self.ball_count < play_mode.boy.ball_count:
+            return BehaviorTree.SUCCESS
+        else:
+            return BehaviorTree.FAIL
+
     def move_to_boy(self, r=0.5):
         self.state = 'Walk'
         self.move_slightly_to(play_mode.boy.x, play_mode.boy.y)
@@ -117,21 +129,38 @@ class Zombie:
         else:
             return BehaviorTree.RUNNING
 
+    def run_away(self, r=0.5):
+        self.state = 'Walk'
+        self.move_slightly_to(self.x - (play_mode.boy.x - self.x), self.y - (play_mode.boy.y - self.y))
+        if self.distance_less_than(play_mode.boy.x, play_mode.boy.y, self.x, self.y, r):
+            return BehaviorTree.RUNNING
+        else:
+            return BehaviorTree.SUCCESS
+
+
     def get_patrol_location(self):
         pass
 
     def build_behavior_tree(self):
 
         a1 = Action('Set target location', self.set_target_location,500, 50)
-
         a2 = Action('Move to', self.move_to)
-
-        root = SEQ_move_to_target_location = Sequence('Move to target location', a1, a2)
-
         a3 = Action('Set random location', self.set_random_location)
-        root = SEQ_wander = Sequence('Wander', a3, a2)
+        a4 = Action('소년한테 접근', self.move_to_boy)
+        a5 = Action('도망', self.run_away)
 
         c1 = Condition('소년이 근처에 있는가?', self.is_boy_nearby, 7)
-        a4 = Action('소년한테 접근', self.move_to_boy)
-        root =  SEQ_chase_boy = Sequence('소년을 추적', c1, a4)
+        c2 = Condition('볼이 소년보다 많은가?', self.is_have_many_ball)
+        c3 = Condition('볼이 소년보다 적은가?', self.is_have_less_ball)
+
+        root = SEQ_move_to_target_location = Sequence('Move to target location', a1, a2)
+        root = SEQ_wander = Sequence('Wander', a3, a2)
+        root = SEQ_chase = Sequence('추격', c2, a4)
+        root = SEQ_runaway = Sequence('도망', c3, a5)
+
+        root = SEL_chase_or_runaway = Selector('추격, 도망', SEQ_chase, SEQ_runaway)
+        root =  SEQ_meet_boy = Sequence('조우', c1, SEL_chase_or_runaway)
+
+        root =  SEL_chase_or_flee = Selector('추적, 도망, 배회', SEQ_meet_boy, SEQ_wander)
+
         self.bt = BehaviorTree(root)
